@@ -17,31 +17,30 @@
 <cfset req = GetHttpRequestData()/>
 <cfset rds_command = req.content />
 
-<cffunction name="getCommandData" returntype="array" output="false">
+<cffunction name="getCommandData" returntype="array" output="true">
 	<cfargument name="rawdata" required="true" type="string"/>
 	
 	<!--- This function was derived from work by Paul Klinkenberg --->
 	<!--- Thank you Paul for all your help --->
 	
-	<cfset req = GetHttpRequestData()/>
-	<cfset loop_data = arraynew(1)/>
 	
-	<cfset nDataLen = len(arguments.rawdata) />
-	<cfset nIndex = 1 />
-	<cfloop condition="nIndex lte nDataLen">
-		<cfif nIndex eq 1>
-			<cfset variables.loop_data[1] = listFirst(arguments.rawdata, ':') />
-			<cfset nIndex = len(variables.loop_data[1]) + 2 />
-		<cfelseif refind('STR:[0-9]+:', arguments.rawdata, nIndex) eq nIndex>
-			<cfset nStrLen = listFirst(mid(arguments.rawdata, nIndex + 4, nDataLen), ':') />
-			<cfset arrayAppend(variables.loop_data, mid(arguments.rawdata, nIndex + 4 + len(nStrLen) + 1, nStrLen)) />
-			<cfset nIndex = nIndex + 4 + len(nStrLen) + 1 + nStrLen />
-		<cfelseif mid(arguments.rawdata, nIndex, 1) eq ','>
-			<!--- end of this form key; we're done --->
-			<cfset nIndex = len(arguments.rawdata)+1 />
-		<cfelse>
-			<cfthrow message="Unknown data starting from character #nIndex# in string #arguments.rawdata#" />
+	<!--- replace "" w/ " --->
+	<cfset arguments.rawdata = replace(arguments.rawdata, """""", """", "all")/>
+	<cfset loop_data = arraynew(1)/>
+	<cfset regex = "STR:[0-9]+:"/>
+
+	<cfset pos_array = refindnocase(regex, arguments.rawdata, 1, true)/>
+	<cfset spos = pos_array.pos[1]/>
+	<cfloop condition="#spos#">		
+		<cfif spos>
+			<cfset cmdstr = mid(arguments.rawdata, pos_array.pos[1], pos_array.len[1])/>
+			<cfset paramlen = listlast(cmdstr, ":")/>
+			<cfset paramstr = mid(arguments.rawdata, pos_array.pos[1]+len(cmdstr), paramlen)/>
 		</cfif>
+		
+		<cfset pos_array = refindnocase(regex, arguments.rawdata, pos_array.pos[1]+1, true)/>
+		<cfset spos = pos_array.pos[1]/>
+		<cfset arrayappend(loop_data, paramstr)/>
 	</cfloop>
 	
 	<!--- the rest of my code doesn't need the first element of the array --->
