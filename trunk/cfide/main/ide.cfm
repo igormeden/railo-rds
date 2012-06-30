@@ -5,59 +5,57 @@
 	Credit :
 		Paul Klinkenberg
 
-	Version : 1.0.1
+	Version : 1.0.2
 --->
 <cfsetting showdebugoutput="false" enablecfoutputonly="true"/>
 <cfparam name="action" default="IDE_DEFAULT"/>
 
 <cfset debug = structnew()/>
-<cfset debug.enabled = true/>
-<cfset debug.path = expandpath("/")/>
+<cfset debug.enabled = false/>
+<cfset debug.path = "/opt/railo/tomcat/webapps/ROOT/cfide/main"/>
 
 <cfset req = GetHttpRequestData()/>
 <cfset rds_command = req.content />
 
-<cffunction name="getCommandData" returntype="array" output="true">
+<cffunction name="logger" access="private" output="false" returntype="void">
+	<cfargument name="logtype" type="string" required="true"/> 
+	<cfargument name="str" type="string" required="true"/> 
+	
+	<cftry>
+		<cffile action="append" file="#debug.path#\rds.txt" output="[#dateformat(now(), "yyyy-mm-dd")# #timeformat(now(), "HH:mm:ss")#][#logtype#]	#str#"/>
+		
+		<cfcatch type="any"></cfcatch>
+	</cftry>
+</cffunction>
+
+<cffunction name="getCommandData" returntype="array" output="false">
 	<cfargument name="rawdata" required="true" type="string"/>
 	
 	<!--- This function was derived from work by Paul Klinkenberg --->
-	<!--- Thank you Paul for all your help --->
-	
-	
-	<!--- replace "" w/ " --->
-	<cfset arguments.rawdata = replace(arguments.rawdata, """""", """", "all")/>
-	<cfset loop_data = arraynew(1)/>
-	<cfset regex = "STR:[0-9]+:"/>
 
-	<cfset pos_array = refindnocase(regex, arguments.rawdata, 1, true)/>
-	<cfset spos = pos_array.pos[1]/>
-	<cfloop condition="#spos#">		
-		<cfif spos>
-			<cfset cmdstr = mid(arguments.rawdata, pos_array.pos[1], pos_array.len[1])/>
-			<cfset paramlen = listlast(cmdstr, ":")/>
-			<cfset paramstr = mid(arguments.rawdata, pos_array.pos[1]+len(cmdstr), paramlen)/>
-		</cfif>
-		
-		<cfset pos_array = refindnocase(regex, arguments.rawdata, pos_array.pos[1]+1, true)/>
-		<cfset spos = pos_array.pos[1]/>
-		<cfset arrayappend(loop_data, paramstr)/>
-	</cfloop>
-	
-	<!--- the rest of my code doesn't need the first element of the array --->
-	<cfset return_array = arraynew(1)/>	
-	<cfloop from="2" to="#arraylen(variables.loop_data)#" index="i">
-		<cfset arrayappend(return_array, variables.loop_data[i])/>
+	<cfset rawdata = listrest(arguments.rawdata, ":")/>
+	<cfset spos = findnocase("str:", arguments.rawdata)/>
+
+	<cfset return_array = arraynew(1)/>
+	<cfloop condition="#spos#">
+		<cfset length = listfirst(mid(arguments.rawdata, spos+4, len(arguments.rawdata)), ":")/>
+		<cfset arrayappend(return_array, mid(arguments.rawdata, spos+4+len(length)+1, length))/>
+		<cfset spos = findnocase("str:", arguments.rawdata, spos+length+1)/>
 	</cfloop>
 	
 	<cfreturn return_array/>
 </cffunction>
 
 <cfif debug.enabled>
-	<cffile action="append" file="#debug.path#\rds.txt" output="[query]	#cgi.query_string#"/>
-	<cffile action="append" file="#debug.path#\rds.txt" output="[request]	#rds_command#"/>
+	<cfset logger("query", cgi.query_string)/>
+	<cfset logger("request", rds_command)/>
 </cfif>
- 
-<cfset loop_array = getCommandData(rds_command)/>
+
+<cfif structkeyexists(url, "rds_command") and debug.enabled>
+	<cfset loop_array = getCommandData(url.rds_command)/>
+<cfelse>
+	<cfset loop_array = getCommandData(rds_command)/>
+</cfif>
 
 <cfobject name="RDSObject" component="rds"/>
 
@@ -113,5 +111,13 @@
 </cfswitch>
 
 <cfif debug.enabled>
-	<cffile action="append" file="#debug.path#\rds.txt" output="[response]	#output#"/>
-</cfif><cfcontent reset="true" /><cfprocessingdirective suppresswhitespace="false"><cfoutput>#output#</cfoutput></cfprocessingdirective>
+	<cfset logger("response", output)/>
+</cfif>
+
+<cfif structkeyexists(url, "rds_command") and debug.enabled>
+	<cfcontent reset="false" />
+<cfelse>
+	<cfcontent reset="true" />
+</cfif>
+
+<cfprocessingdirective suppresswhitespace="false"><cfoutput>#output#</cfoutput></cfprocessingdirective>
