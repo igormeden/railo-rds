@@ -4,11 +4,28 @@
 	
 	Credit :
 		Paul Klinkenberg
-
-	Version : 1.0.1
+	
+	Version : 1.0.2
 --->
 <cfcomponent>
 	<cfset login_error_msg = "-100:Unable to authenticate on RDS server using current security information !"/>
+	
+	<cfif findnocase(server.os.name, "windows") eq 0>
+		<cfset slash = "\"/>
+	<cfelse>
+		<cfset slash = "/"/>
+	</cfif>
+	
+	<cffunction name="correctSlashes" output="false" returntype="string" access="public">
+		<cfargument name="str" required="true" type="string"/>
+		
+		<cfif slash eq "\">
+			<cfreturn replace(arguments.str, "/", "\", "all")/>
+		</cfif>
+		
+		<cfreturn arguments.str/>
+	</cffunction>
+	
 	<cffunction name="decryt_rds" output="false" returntype="string" access="public">
 		<cfargument name="password" required="true" type="string"/>
 		
@@ -32,23 +49,25 @@
 	<cffunction name="authenticateUser" access="private" output="false" returntype="boolean">
 		<cfargument name="authstring" required="true" default="" type="string"/>
 		
-		<cfset var username = ""/>
-		<cfset var password = decryt_rds(listlast(arguments.authstring, ";"))/>
-		<cfif mid(arguments.authstring, 1, 1) neq ";">
-			<cfset var username = listfirst(arguments.authstring, ";")/>
-		</cfif>		
+		<cfif listlen(arguments.authstring, ";") eq 2>
+			<cfset username = listfirst(arguments.authstring, ";")/>
+			<cfset password = decryt_rds(listlast(arguments.authstring, ";"))/>
+		<cfelse>
+			<cfset username = ""/>
+			<cfset password = decryt_rds(listlast(arguments.authstring, ";"))/>			
+		</cfif>
 		
 		<cfset qUsers = querynew("username,password")/>
 		<cfset queryaddrow(qUsers)/>
 		<cfset querysetcell(qUsers, "username", "")/>
-		<cfset querysetcell(qUsers, "password", "password")/>
+		<cfset querysetcell(qUsers, "password", "password goes here")/>
 		
 		<cfquery name="qLogin" dbtype="query">
 			select * from qUsers
 			where 	username = <cfqueryparam cfsqltype="cf_sql_varchar" value="#username#"/> and
 					password = <cfqueryparam cfsqltype="cf_sql_varchar" value="#password#"/>
 		</cfquery>
-		
+
 		<cfif qLogin.recordcount>
 			<cfreturn true/>
 		<cfelse>
@@ -116,7 +135,7 @@
 		<cftry>
 			<cfif fileexists(args[1])>
 				<cfdirectory directory="#getdirectoryfrompath(args[1])#" name="qDir" filter="#getfilefrompath(args[1])#"/>
-				<cffile action="read" file="#args[1]#" variable="read_var"/>
+				<cffile action="readbinary" file="#args[1]#" variable="read_var"/>
 				<cfset str = "#len(len(read_var))#:"/>
 				<cfset str = str & "#len(read_var)#:"/>
 				<cfset str = str & "#read_var#"/>
@@ -216,10 +235,14 @@
 		</cfif>
 		
 		<cftry>
-			<cfif fileexists(args[1])>
+			<cfif fileexists(correctSlashes(args[1])) or right(args[1], 1) eq ":">
 				<cfreturn "1:0:"/>
 			<cfelse>
-				<cfreturn "-1:file not found"/>
+				<cfif directoryexists(correctSlashes(args[1]))>
+					<cfreturn "1:0:"/>
+				<cfelse>
+					<cfreturn "-1:file not found"/>
+				</cfif>
 			</cfif>
 			
 			<cfcatch type="Any">
@@ -376,9 +399,8 @@
 		<cfset params = listtoarray(args[1], ";")/>
 
 		<cftry>
-			<cfquery name="qQuery" datasource="#params[1]#">
-				#preservesinglequotes(args[3])#
-			</cfquery>
+			<cfset sql = args[3]/>
+			<cfquery name="qQuery" datasource="#params[1]#">#preservesinglequotes(sql)#</cfquery>
 
 			<cfset column_array = listtoarray(qQuery.columnlist)/>
 			
