@@ -1,0 +1,1 @@
+Coldfusion RDS is a service of Coldfusion Server used by various applications to provide remote web access to files and databases. None of the open source CFML engines support RDS, until now.
